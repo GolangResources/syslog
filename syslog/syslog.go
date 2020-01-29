@@ -32,6 +32,7 @@ type Settings struct {
 	PING_PREFIX	string
 	SOCKET_TIMEOUT	time.Duration
 	DEBUG		bool
+	Hostname	string
 }
 
 var settings Settings
@@ -129,21 +130,22 @@ func Dial(network, raddr string, priority Priority, s *Settings) (*Writer, error
 	if s != nil {
 		settings = *s
 	} else {
+		hostname, _ := os.Hostname()
 		settings = Settings{
 			SyslogVersion:	"1",
 			PING_PREFIX:	"",
 			SOCKET_TIMEOUT:	60 * time.Second,
 			DEBUG:		false,
+			Hostname:	hostname,
 		}
 	}
         if priority < 0 || priority > LOG_LOCAL7|LOG_DEBUG {
                 return nil, errors.New("log/syslog: invalid priority")
         }
-        hostname, _ := os.Hostname()
 
         w := &Writer {
                 priority:       priority,
-                hostname:       hostname,
+                hostname:       settings.Hostname,
                 network:        network,
                 raddr:          raddr,
         }
