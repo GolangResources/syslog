@@ -16,13 +16,13 @@ import (
         "time"
         "crypto/tls"
         //"glog"
+	sg "log/syslog"
 )
 
 // The Priority is a combination of the syslog facility and
 // severity. For example, LOG_ALERT | LOG_FTP sends an alert severity
 // message from the FTP facility. The default severity is LOG_EMERG;
 // the default facility is LOG_KERN.
-type Priority int
 
 const severityMask = 0x07
 const facilityMask = 0xf8
@@ -42,7 +42,7 @@ const (
 
         // From /usr/include/sys/syslog.h.
         // These are the same on Linux, BSD, and OS X.
-        LOG_EMERG Priority = iota
+        LOG_EMERG sg.Priority = iota
         LOG_ALERT
         LOG_CRIT
         LOG_ERR
@@ -57,7 +57,7 @@ const (
 
         // From /usr/include/sys/syslog.h.
         // These are the same up to LOG_FTP on Linux, BSD, and OS X.
-        LOG_KERN Priority = iota << 3
+        LOG_KERN sg.Priority = iota << 3
         LOG_USER
         LOG_MAIL
         LOG_DAEMON
@@ -85,7 +85,7 @@ const (
 
 // A Writer is a connection to a syslog server.
 type Writer struct {
-        priority        Priority
+        priority        sg.Priority
         hostname        string
         network         string
         raddr           string
@@ -101,7 +101,7 @@ type Writer struct {
 // return a type that satisfies this interface and simply calls the C
 // library syslog function.
 type serverConn interface {
-        writeString(p Priority, hostname string, tag string,
+        writeString(p sg.Priority, hostname string, tag string,
                 s *string, nl string) (int, error)
         close() error
 }
@@ -115,7 +115,7 @@ type netConn struct {
 // write to the returned writer sends a log message with the given
 // priority (a combination of the syslog facility and severity) and
 // prefix tag. If tag is empty, the os.Args[0] is used.
-func New(priority Priority, s *Settings) (*Writer, error) {
+func New(priority sg.Priority, s *Settings) (*Writer, error) {
         return Dial("", "", priority, s)
 }
 
@@ -126,7 +126,7 @@ func New(priority Priority, s *Settings) (*Writer, error) {
 // If network is empty, Dial will connect to the local syslog server.
 // Otherwise, see the documentation for net.Dial for valid values
 // of network and raddr.
-func Dial(network, raddr string, priority Priority, s *Settings) (*Writer, error) {
+func Dial(network, raddr string, priority sg.Priority, s *Settings) (*Writer, error) {
 	if s != nil {
 		settings = *s
 	} else {
@@ -288,17 +288,17 @@ func (w *Writer) Debug(m *string, tag string) error {
 }
 
 // Generic interface for sending syslog messages
-func (w *Writer) WriteSyslog(p Priority, m *string, tag string) error {
+func (w *Writer) WriteSyslog(p sg.Priority, m *string, tag string) error {
         _, err := w.writeAndRetry(p, m, "", tag)
         return err
 }
 
-func (w *Writer) WritePing(p Priority, m *string, tag string) error {
+func (w *Writer) WritePing(p sg.Priority, m *string, tag string) error {
         _, err := w.writeAndRetry(p, m, settings.PING_PREFIX, tag)
         return err
 }
 
-func (w *Writer) writeAndRetry(p Priority, s *string, pt string, tag string) (int, error) {
+func (w *Writer) writeAndRetry(p sg.Priority, s *string, pt string, tag string) (int, error) {
         pr := (w.priority & facilityMask) | (p & severityMask)
         w.mu.Lock()
         defer w.mu.Unlock()
@@ -317,7 +317,7 @@ func (w *Writer) writeAndRetry(p Priority, s *string, pt string, tag string) (in
 
 // write generates and writes a syslog formatted string. The
 // format is as follows: <PRI>TIMESTAMP HOSTNAME TAG[PID]: MSG
-func (w *Writer) write(p Priority, msg *string, pt string, tag string) (int, error) {
+func (w *Writer) write(p sg.Priority, msg *string, pt string, tag string) (int, error) {
         // ensure it ends in a \n
         nl := ""
         if !strings.HasSuffix(*msg, "\n") {
@@ -334,7 +334,7 @@ func (w *Writer) write(p Priority, msg *string, pt string, tag string) (int, err
 }
 
 // Fully syslogv2 specifications compatible implementation
-func (n *netConn) writeString(p Priority, hostname, tag string, msg *string, nl string) (int, error) {
+func (n *netConn) writeString(p sg.Priority, hostname, tag string, msg *string, nl string) (int, error) {
         var err error
         var l int
         now := time.Now()
@@ -358,7 +358,7 @@ func (n *netConn) close() error {
 // system log service with the specified priority, a combination of
 // the syslog facility and severity. The logFlag argument is the flag
 // set passed through to log.New to create the Logger.
-/*func NewLogger(p Priority, logFlag int, tag string) (*log.Logger, error) {
+/*func NewLogger(p sg.Priority, logFlag int, tag string) (*log.Logger, error) {
         s, err := New(p)
         if err != nil {
                 return nil, err
